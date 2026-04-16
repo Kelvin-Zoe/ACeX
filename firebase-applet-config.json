@@ -1,10 +1,9 @@
 {
-  "projectId": "gen-lang-client-0000315377",
-  "appId": "1:8243527631:web:453a6708af6a54592c1cba",
-  "apiKey": "AIzaSyAWLhcXromJmkw0Y_rUzxdxJyddMVTus98",
-  "authDomain": "gen-lang-client-0000315377.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-757d1f31-a29d-4ab8-bd3f-8dfc84edc5b1",
-  "storageBucket": "gen-lang-client-0000315377.firebasestorage.app",
-  "messagingSenderId": "8243527631",
-  "measurementId": ""
+  "apiKey": "AIzaSyAswBTjtLBzNp88dY75Z-T0MQ33kY4muUw",
+  "authDomain": "five-hive.firebaseapp.com",
+  "projectId": "five-hive",
+  "storageBucket": "five-hive.firebasestorage.app",
+  "messagingSenderId": "1012524956389",
+  "appId": "1:1012524956389:web:214503f087dae4d0fe720c",
+  "measurementId": "G-44RM8CHHSD"
 }

@@ -1,0 +1,320 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required)
+    //   - displayName: string (required)
+    //   - role: string (required, 'student', 'cm', 'admin')
+    //   - department: string (optional)
+    //   - level: number (optional)
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: courses
+    // Document ID: {courseId}
+    // Fields:
+    //   - code: string (required)
+    //   - title: string (required)
+    //   - department: string (required)
+    //   - level: number (required)
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: materials
+    // Document ID: {materialId}
+    // Fields:
+    //   - courseId: string (required)
+    //   - title: string (required)
+    //   - description: string (optional)
+    //   - type: string (required, 'pdf', 'image', 'document', 'link')
+    //   - url: string (required)
+    //   - topic: string (optional)
+    //   - year: number (optional)
+    //   - uploaderId: string (required)
+    //   - status: string (required, 'pending', 'verified', 'rejected')
+    //   - upvotes: number (required)
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: quizzes
+    // Document ID: {quizId}
+    // Fields:
+    //   - courseId: string (required)
+    //   - title: string (required)
+    //   - topic: string (optional)
+    //   - questions: list (required)
+    //   - creatorId: string (required)
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: quizAttempts
+    // Document ID: {attemptId}
+    // Fields:
+    //   - quizId: string (required)
+    //   - userId: string (required)
+    //   - courseId: string (required)
+    //   - score: number (required)
+    //   - totalQuestions: number (required)
+    //   - completedAt: timestamp (required)
+    //
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.uid;
+    }
+
+    function uidUnchanged() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == request.auth.uid;
+    }
+
+    function uidNotModified() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == resource.data.uid;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    function isValidString(field, minLen, maxLen) {
+      return request.resource.data[field] is string &&
+             request.resource.data[field].size() >= minLen &&
+             request.resource.data[field].size() <= maxLen;
+    }
+
+    function isValidOptionalString(field, minLen, maxLen) {
+      return !(field in request.resource.data) ||
+             (request.resource.data[field] is string &&
+              request.resource.data[field].size() >= minLen &&
+              request.resource.data[field].size() <= maxLen);
+    }
+
+    function isValidNumber(field, min, max) {
+      return request.resource.data[field] is number &&
+             request.resource.data[field] >= min &&
+             request.resource.data[field] <= max;
+    }
+
+    function isValidOptionalNumber(field, min, max) {
+      return !(field in request.resource.data) ||
+             (request.resource.data[field] is number &&
+              request.resource.data[field] >= min &&
+              request.resource.data[field] <= max);
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (getUserData().role == 'admin' ||
+          (request.auth.token.email == "kgrayjade@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isCM() {
+      return isAuthenticated() && (getUserData().role == 'cm' || isAdmin());
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      let allowedFields = ['uid', 'email', 'displayName', 'role', 'faculty', 'department', 'level', 'walletBalance', 'photoURL', 'createdAt'];
+      return hasOnlyAllowedFields(allowedFields) &&
+             hasRequiredFields(['uid', 'email', 'displayName', 'role', 'createdAt']) &&
+             data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
+             data.email is string && data.email.size() > 0 && data.email.size() < 100 &&
+             data.displayName is string && data.displayName.size() > 0 && data.displayName.size() < 100 &&
+             data.role in ['student', 'cm', 'admin'] &&
+             (!( 'faculty' in data ) || (data.faculty is string && data.faculty.size() < 100)) &&
+             (!( 'department' in data ) || (data.department is string && data.department.size() < 100)) &&
+             (!( 'level' in data ) || (data.level is number && data.level >= 100 && data.level <= 900)) &&
+             (!( 'walletBalance' in data ) || (data.walletBalance is number && data.walletBalance >= 0)) &&
+             (!( 'photoURL' in data ) || (data.photoURL is string && data.photoURL.size() < 500)) &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidCourse(data) {
+      let allowedFields = ['code', 'title', 'department', 'level', 'createdAt'];
+      return hasOnlyAllowedFields(allowedFields) &&
+             hasRequiredFields(['code', 'title', 'department', 'level', 'createdAt']) &&
+             data.code is string && data.code.size() > 0 && data.code.size() < 20 &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 150 &&
+             data.department is string && data.department.size() > 0 && data.department.size() < 100 &&
+             data.level is number && data.level >= 100 && data.level <= 900 &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidMaterial(data) {
+      let allowedFields = ['courseId', 'title', 'description', 'type', 'url', 'topic', 'year', 'uploaderId', 'status', 'upvotes', 'createdAt'];
+      return hasOnlyAllowedFields(allowedFields) &&
+             hasRequiredFields(['courseId', 'title', 'type', 'url', 'uploaderId', 'status', 'upvotes', 'createdAt']) &&
+             data.courseId is string && data.courseId.size() > 0 && data.courseId.size() < 100 &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 150 &&
+             (!( 'description' in data ) || (data.description is string && data.description.size() < 1000)) &&
+             data.type in ['pdf', 'image', 'document', 'link'] &&
+             data.url is string && data.url.size() > 0 && data.url.size() < 500 &&
+             (!( 'topic' in data ) || (data.topic is string && data.topic.size() < 100)) &&
+             (!( 'year' in data ) || (data.year is number && data.year >= 1900 && data.year <= 2100)) &&
+             data.uploaderId is string && data.uploaderId.size() > 0 && data.uploaderId.size() < 100 &&
+             data.status in ['pending', 'verified', 'rejected'] &&
+             data.upvotes is number && data.upvotes >= 0 &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidQuiz(data) {
+      let allowedFields = ['courseId', 'title', 'topic', 'questions', 'creatorId', 'createdAt'];
+      return hasOnlyAllowedFields(allowedFields) &&
+             hasRequiredFields(['courseId', 'title', 'questions', 'creatorId', 'createdAt']) &&
+             data.courseId is string && data.courseId.size() > 0 && data.courseId.size() < 100 &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 150 &&
+             (!( 'topic' in data ) || (data.topic is string && data.topic.size() < 100)) &&
+             data.questions is list && data.questions.size() <= 100 &&
+             data.creatorId is string && data.creatorId.size() > 0 && data.creatorId.size() < 100 &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidQuizAttempt(data) {
+      let allowedFields = ['quizId', 'userId', 'courseId', 'score', 'totalQuestions', 'completedAt', 'challengeId'];
+      return hasOnlyAllowedFields(allowedFields) &&
+             hasRequiredFields(['quizId', 'userId', 'courseId', 'score', 'totalQuestions', 'completedAt']) &&
+             data.quizId is string && data.quizId.size() > 0 && data.quizId.size() < 100 &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() < 100 &&
+             data.courseId is string && data.courseId.size() > 0 && data.courseId.size() < 100 &&
+             (!( 'challengeId' in data ) || (data.challengeId is string && data.challengeId.size() < 100)) &&
+             data.score is number && data.score >= 0 &&
+             data.totalQuestions is number && data.totalQuestions > 0 &&
+             data.completedAt is timestamp;
+    }
+
+    function isValidReminder(data) {
+      let allowedFields = ['userId', 'title', 'courseId', 'dueDate', 'completed', 'createdAt'];
+      return hasOnlyAllowedFields(allowedFields) &&
+             hasRequiredFields(['userId', 'title', 'completed', 'createdAt']) &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() < 100 &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 150 &&
+             (!( 'courseId' in data ) || (data.courseId is string && data.courseId.size() < 100)) &&
+             (!( 'dueDate' in data ) || (data.dueDate is string && data.dueDate.size() < 50)) &&
+             data.completed is bool &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidChallenge(data) {
+      let allowedFields = ['title', 'courseId', 'topic', 'entryFee', 'prizePool', 'status', 'participants', 'quizId', 'creatorId', 'createdAt', 'winners'];
+      return hasOnlyAllowedFields(allowedFields) &&
+             hasRequiredFields(['title', 'courseId', 'topic', 'entryFee', 'prizePool', 'status', 'participants', 'creatorId', 'createdAt']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 150 &&
+             data.courseId is string && data.courseId.size() > 0 && data.courseId.size() < 100 &&
+             data.topic is string && data.topic.size() > 0 && data.topic.size() < 100 &&
+             data.entryFee is number && data.entryFee >= 500 && data.entryFee <= 5000 &&
+             data.prizePool is number && data.prizePool >= 0 &&
+             data.status in ['open', 'active', 'completed'] &&
+             data.participants is list && data.participants.size() <= 1000 &&
+             (!( 'quizId' in data ) || (data.quizId is string && data.quizId.size() < 100)) &&
+             (!( 'winners' in data ) || (data.winners is list && data.winners.size() <= 3)) &&
+             data.creatorId is string && data.creatorId.size() > 0 && data.creatorId.size() < 100 &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated(); // Allow reading profiles for leaderboards/display
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) &&
+                    isOwner(userId) && uidUnchanged() &&
+                    (request.resource.data.role == 'student' || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) &&
+                    isOwner(userId) && uidNotModified() &&
+                    areImmutableFieldsUnchanged(['createdAt']) &&
+                    (request.resource.data.role == resource.data.role || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /courses/{courseId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() && isValidCourse(request.resource.data);
+      allow update: if isAdmin() && isValidCourse(request.resource.data) &&
+                    areImmutableFieldsUnchanged(['createdAt']);
+      allow delete: if isAdmin();
+    }
+
+    match /materials/{materialId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidMaterial(request.resource.data) &&
+                    request.resource.data.uploaderId == request.auth.uid &&
+                    (request.resource.data.status == 'pending' || isCM());
+      allow update: if isAuthenticated() && isValidMaterial(request.resource.data) &&
+                    areImmutableFieldsUnchanged(['createdAt', 'uploaderId', 'courseId']) &&
+                    (
+                      (isCM()) ||
+                      (request.resource.data.uploaderId == request.auth.uid && request.resource.data.status == resource.data.status)
+                    );
+      allow delete: if isCM() || (isAuthenticated() && resource.data.uploaderId == request.auth.uid);
+    }
+
+    match /quizzes/{quizId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidQuiz(request.resource.data) &&
+                    request.resource.data.creatorId == request.auth.uid;
+      allow update: if isAuthenticated() && isValidQuiz(request.resource.data) &&
+                    areImmutableFieldsUnchanged(['createdAt', 'creatorId', 'courseId']) &&
+                    (isCM() || request.resource.data.creatorId == request.auth.uid);
+      allow delete: if isCM() || (isAuthenticated() && resource.data.creatorId == request.auth.uid);
+    }
+
+    match /quizAttempts/{attemptId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidQuizAttempt(request.resource.data) &&
+                    request.resource.data.userId == request.auth.uid;
+      // Quiz attempts are immutable
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    match /reminders/{reminderId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && isValidReminder(request.resource.data) &&
+                    request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && isValidReminder(request.resource.data) &&
+                    resource.data.userId == request.auth.uid &&
+                    request.resource.data.userId == request.auth.uid &&
+                    areImmutableFieldsUnchanged(['createdAt', 'userId']);
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    match /challenges/{challengeId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidChallenge(request.resource.data) &&
+                    request.resource.data.creatorId == request.auth.uid;
+      // Allow updates for joining (adding to participants, increasing prize pool) or status changes
+      allow update: if isAuthenticated() && isValidChallenge(request.resource.data) &&
+                    areImmutableFieldsUnchanged(['createdAt', 'creatorId', 'courseId', 'entryFee']);
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.creatorId == request.auth.uid && resource.data.participants.size() == 0);
+    }
+  }
+}

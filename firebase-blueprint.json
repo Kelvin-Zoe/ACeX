@@ -1,0 +1,156 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the platform (student, CM, or admin).",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "description": "User's email address" },
+        "displayName": { "type": "string", "description": "User's full name" },
+        "role": { "type": "string", "enum": ["student", "cm", "admin"], "description": "User's role" },
+        "faculty": { "type": "string", "description": "User's faculty" },
+        "department": { "type": "string", "description": "User's department" },
+        "level": { "type": "number", "description": "User's academic level (e.g., 100, 200)" },
+        "photoURL": { "type": "string", "description": "URL to the user's profile picture" },
+        "walletBalance": { "type": "number", "description": "User's wallet balance in Naira" },
+        "createdAt": { "type": "timestamp", "description": "Account creation time" }
+      },
+      "required": ["uid", "email", "displayName", "role", "createdAt"]
+    },
+    "Course": {
+      "title": "Course",
+      "description": "A course within a department.",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string", "description": "Course code (e.g., CSC201)" },
+        "title": { "type": "string", "description": "Course title" },
+        "department": { "type": "string", "description": "Department offering the course" },
+        "level": { "type": "number", "description": "Level the course is taught at" },
+        "createdAt": { "type": "timestamp", "description": "Creation time" }
+      },
+      "required": ["code", "title", "department", "level", "createdAt"]
+    },
+    "Material": {
+      "title": "Material",
+      "description": "A study material uploaded for a course.",
+      "type": "object",
+      "properties": {
+        "courseId": { "type": "string", "description": "ID of the course" },
+        "title": { "type": "string", "description": "Title of the material" },
+        "description": { "type": "string", "description": "Description of the material" },
+        "type": { "type": "string", "enum": ["pdf", "image", "document", "link"], "description": "Type of material" },
+        "url": { "type": "string", "description": "URL to the material (e.g., Firebase Storage)" },
+        "topic": { "type": "string", "description": "Topic covered" },
+        "year": { "type": "number", "description": "Year (for past questions)" },
+        "uploaderId": { "type": "string", "description": "UID of the user who uploaded it" },
+        "status": { "type": "string", "enum": ["pending", "verified", "rejected"], "description": "Verification status" },
+        "upvotes": { "type": "number", "description": "Number of upvotes" },
+        "createdAt": { "type": "timestamp", "description": "Upload time" }
+      },
+      "required": ["courseId", "title", "type", "url", "uploaderId", "status", "upvotes", "createdAt"]
+    },
+    "Quiz": {
+      "title": "Quiz",
+      "description": "A quiz generated for a course.",
+      "type": "object",
+      "properties": {
+        "courseId": { "type": "string", "description": "ID of the course" },
+        "title": { "type": "string", "description": "Title of the quiz" },
+        "topic": { "type": "string", "description": "Topic covered" },
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "question": { "type": "string" },
+              "options": { "type": "array", "items": { "type": "string" } },
+              "correctAnswer": { "type": "number", "description": "Index of the correct option" },
+              "explanation": { "type": "string" }
+            }
+          }
+        },
+        "creatorId": { "type": "string", "description": "UID of the user who created it (or 'system')" },
+        "createdAt": { "type": "timestamp", "description": "Creation time" }
+      },
+      "required": ["courseId", "title", "questions", "creatorId", "createdAt"]
+    },
+    "QuizAttempt": {
+      "title": "QuizAttempt",
+      "description": "A user's attempt at a quiz.",
+      "type": "object",
+      "properties": {
+        "quizId": { "type": "string", "description": "ID of the quiz" },
+        "userId": { "type": "string", "description": "UID of the user" },
+        "courseId": { "type": "string", "description": "ID of the course (for leaderboard aggregation)" },
+        "challengeId": { "type": "string", "description": "Optional ID of the challenge this attempt belongs to" },
+        "score": { "type": "number", "description": "Score achieved" },
+        "totalQuestions": { "type": "number", "description": "Total number of questions" },
+        "completedAt": { "type": "timestamp", "description": "Completion time" }
+      },
+      "required": ["quizId", "userId", "courseId", "score", "totalQuestions", "completedAt"]
+    },
+    "Reminder": {
+      "title": "Reminder",
+      "description": "A study reminder or deadline for a user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "UID of the user" },
+        "title": { "type": "string", "description": "Title of the reminder" },
+        "courseId": { "type": "string", "description": "Optional ID of the related course" },
+        "dueDate": { "type": "string", "description": "Due date in ISO format" },
+        "completed": { "type": "boolean", "description": "Whether the reminder is completed" },
+        "createdAt": { "type": "timestamp", "description": "Creation time" }
+      },
+      "required": ["userId", "title", "completed", "createdAt"]
+    },
+    "Challenge": {
+      "title": "Challenge",
+      "description": "A competitive challenge round.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Title of the challenge" },
+        "courseId": { "type": "string", "description": "ID of the related course" },
+        "topic": { "type": "string", "description": "Topic of the challenge" },
+        "entryFee": { "type": "number", "description": "Entry fee in Naira (500-5000)" },
+        "prizePool": { "type": "number", "description": "Total prize pool accumulated" },
+        "status": { "type": "string", "enum": ["open", "active", "completed"], "description": "Current status" },
+        "participants": { "type": "array", "items": { "type": "string" }, "description": "Array of participant UIDs" },
+        "quizId": { "type": "string", "description": "ID of the quiz to be taken" },
+        "creatorId": { "type": "string", "description": "UID of the user who created it" },
+        "createdAt": { "type": "timestamp", "description": "Creation time" }
+      },
+      "required": ["title", "courseId", "topic", "entryFee", "prizePool", "status", "participants", "creatorId", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "courses/{courseId}": {
+      "schema": "Course",
+      "description": "Courses available in the platform"
+    },
+    "materials/{materialId}": {
+      "schema": "Material",
+      "description": "Study materials"
+    },
+    "quizzes/{quizId}": {
+      "schema": "Quiz",
+      "description": "Quizzes for courses"
+    },
+    "quizAttempts/{attemptId}": {
+      "schema": "QuizAttempt",
+      "description": "User quiz attempts"
+    },
+    "reminders/{reminderId}": {
+      "schema": "Reminder",
+      "description": "User study reminders"
+    },
+    "challenges/{challengeId}": {
+      "schema": "Challenge",
+      "description": "Competitive challenge rounds"
+    }
+  }
+}
